@@ -11,8 +11,9 @@ const { JWT } = require('google-auth-library');
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
-
-const creds = require('./credentials.json');
+const creds = JSON.parse(
+  process.env.GOOGLE_CREDENTIALS
+);
 
 const serviceAccountAuth = new JWT({
   email: creds.client_email,
