@@ -1,4 +1,6 @@
-require('dotenv').config();
+const creds = JSON.parse(
+  process.env.GOOGLE_CREDENTIALS
+);
 
 const {
   Client,
