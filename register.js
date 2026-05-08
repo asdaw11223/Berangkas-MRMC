@@ -48,13 +48,6 @@ const commands = [
         .setName('keterangan')
         .setDescription('Keterangan')
         .setRequired(true)
-    )
-
-    .addStringOption(option =>
-      option
-        .setName('password')
-        .setDescription('Password bot')
-        .setRequired(true)
     ),
 
   // =================================================
