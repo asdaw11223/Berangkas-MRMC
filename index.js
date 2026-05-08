@@ -1,39 +1,53 @@
-const creds = JSON.parse(
-  process.env.GOOGLE_CREDENTIALS
-);
+require('dotenv').config();
 
 const {
   Client,
   GatewayIntentBits
 } = require('discord.js');
 
-const { GoogleSpreadsheet } = require('google-spreadsheet');
-const { JWT } = require('google-auth-library');
+const {
+  GoogleSpreadsheet
+} = require('google-spreadsheet');
 
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
-});
+const {
+  JWT
+} = require('google-auth-library');
+
+// ================= GOOGLE CREDS =================
 const creds = JSON.parse(
   process.env.GOOGLE_CREDENTIALS
 );
 
-const serviceAccountAuth = new JWT({
-  email: creds.client_email,
-  key: creds.private_key,
-  scopes: ['https://www.googleapis.com/auth/spreadsheets']
+// ================= DISCORD CLIENT =================
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds]
 });
 
+// ================= GOOGLE AUTH =================
+const serviceAccountAuth = new JWT({
+  email: creds.client_email,
+  key: creds.private_key.replace(/\\n/g, '\n'),
+  scopes: [
+    'https://www.googleapis.com/auth/spreadsheets'
+  ]
+});
+
+// ================= GOOGLE SHEET =================
 const doc = new GoogleSpreadsheet(
   process.env.SHEET_ID,
   serviceAccountAuth
 );
 
-// ================= FORMAT RUPIAH =================
+// =================================================
+// FORMAT RUPIAH
+// =================================================
 function rupiah(angka) {
   return Number(angka).toLocaleString('id-ID');
 }
 
-// ================= TOTAL TERAKHIR =================
+// =================================================
+// TOTAL TERAKHIR
+// =================================================
 async function getLastTotal(sheet) {
 
   const rows = await sheet.getRows();
@@ -47,7 +61,9 @@ async function getLastTotal(sheet) {
   return parseInt(lastRow.get('Total')) || 0;
 }
 
-// ================= NOMOR OTOMATIS =================
+// =================================================
+// NOMOR OTOMATIS
+// =================================================
 async function getNextNumber(sheet) {
 
   const rows = await sheet.getRows();
@@ -65,7 +81,9 @@ async function getNextNumber(sheet) {
     .padStart(3, '0');
 }
 
-// ================= LOAD SHEET =================
+// =================================================
+// LOAD SHEETS
+// =================================================
 async function loadSheets() {
 
   await doc.loadInfo();
@@ -79,7 +97,9 @@ async function loadSheets() {
   };
 }
 
-// ================= UPDATE GUDANG =================
+// =================================================
+// UPDATE GUDANG
+// =================================================
 async function updateGudang(
   gudangSheet,
   barang,
@@ -118,12 +138,16 @@ async function updateGudang(
   }
 }
 
-// ================= BOT READY =================
-client.once('clientReady', () => {
+// =================================================
+// BOT READY
+// =================================================
+client.once('ready', () => {
   console.log(`${client.user.tag} online!`);
 });
 
-// ================= INTERACTION =================
+// =================================================
+// INTERACTION
+// =================================================
 client.on('interactionCreate', async interaction => {
 
   if (!interaction.isChatInputCommand()) return;
@@ -159,11 +183,11 @@ client.on('interactionCreate', async interaction => {
     const penerima =
       interaction.options.getString('penerima');
 
-    const keterangan =
-      interaction.options.getString('keterangan');
-
     const minggu =
       interaction.options.getString('minggu');
+
+    const keterangan =
+      interaction.options.getString('keterangan');
 
     const tanggal =
       new Date().toLocaleDateString('id-ID');
@@ -172,10 +196,10 @@ client.on('interactionCreate', async interaction => {
       Nomor: nomor,
       Barang: barang,
       Jumlah: jumlah,
-      Tanggal: tanggal,
-      Keterangan: keterangan,
+      Minggu: minggu,
       Penerima: penerima,
-      Minggu: minggu
+      Keterangan: keterangan,
+      Tanggal: tanggal
     });
 
     await updateGudang(
@@ -267,128 +291,6 @@ NO  | BARANG         | JUMLAH | MINGGU | PENERIMA     | KETERANGAN
     text += '```';
 
     await interaction.editReply(text);
-  }
-
-  // =================================================
-  // DEPOSIT
-  // =================================================
-  if (interaction.commandName === 'deposit') {
-
-    const password =
-      interaction.options.getString('password');
-
-    if (password !== process.env.PASSWORD_BOT) {
-
-      return interaction.editReply({
-        content: '❌ Password salah.'
-      });
-    }
-
-    const nomor =
-      await getNextNumber(sheets.brangkas);
-
-    const barang =
-      interaction.options.getString('barang');
-
-    const jumlah =
-      interaction.options.getInteger('jumlah');
-
-    const keterangan =
-      interaction.options.getString('keterangan');
-
-    const tanggal =
-      new Date().toLocaleDateString('id-ID');
-
-    await sheets.brangkas.addRow({
-      Nomor: nomor,
-      Barang: barang,
-      Jumlah: jumlah,
-      Keterangan: keterangan,
-      Tanggal: tanggal,
-      Type: 'deposit'
-    });
-
-    await updateGudang(
-      sheets.gudang,
-      barang,
-      jumlah,
-      'add'
-    );
-
-    await interaction.editReply({
-      content: `# 📥 DEPOSIT BERHASIL
-
-\`\`\`
-NO         : ${nomor}
-BARANG     : ${barang}
-JUMLAH     : ${jumlah}
-AKSI       : DEPOSIT
-KETERANGAN : ${keterangan}
-TANGGAL    : ${tanggal}
-\`\`\`
-`
-    });
-  }
-
-  // =================================================
-  // WITHDRAW
-  // =================================================
-  if (interaction.commandName === 'withdraw') {
-
-    const password =
-      interaction.options.getString('password');
-
-    if (password !== process.env.PASSWORD_BOT) {
-
-      return interaction.editReply({
-        content: '❌ Password salah.'
-      });
-    }
-
-    const nomor =
-      await getNextNumber(sheets.brangkas);
-
-    const barang =
-      interaction.options.getString('barang');
-
-    const jumlah =
-      interaction.options.getInteger('jumlah');
-
-    const keterangan =
-      interaction.options.getString('keterangan');
-
-    const tanggal =
-      new Date().toLocaleDateString('id-ID');
-
-    await sheets.brangkas.addRow({
-      Nomor: nomor,
-      Barang: barang,
-      Jumlah: jumlah,
-      Keterangan: keterangan,
-      Tanggal: tanggal,
-      Type: 'withdraw'
-    });
-
-    await updateGudang(
-      sheets.gudang,
-      barang,
-      jumlah,
-      'remove'
-    );
-
-    await interaction.editReply({
-      content: `# 📤 WITHDRAW BERHASIL
-
-\`\`\`
-NO         : ${nomor}
-BARANG     : ${barang}
-JUMLAH     : ${jumlah}
-AKSI       : WITHDRAW
-KETERANGAN : ${keterangan}
-TANGGAL    : ${tanggal}
-\`\`\`
-`
-    });
   }
 
   // =================================================
@@ -614,4 +516,7 @@ TANGGAL     : ${tanggal}
 
 });
 
+// =================================================
+// LOGIN
+// =================================================
 client.login(process.env.TOKEN);
