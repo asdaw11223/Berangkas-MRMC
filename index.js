@@ -2,37 +2,35 @@ require('dotenv').config();
 
 const {
   Client,
-  GatewayIntentBits
+  GatewayIntentBits,
+  EmbedBuilder
 } = require('discord.js');
 
-const {
-  GoogleSpreadsheet
-} = require('google-spreadsheet');
+const { GoogleSpreadsheet } = require('google-spreadsheet');
+const { JWT } = require('google-auth-library');
 
-const {
-  JWT
-} = require('google-auth-library');
+// =================================================
+// DISCORD CLIENT
+// =================================================
 
-// ================= GOOGLE CREDS =================
-const creds = JSON.parse(
-  process.env.GOOGLE_CREDENTIALS
-);
-
-// ================= DISCORD CLIENT =================
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// ================= GOOGLE AUTH =================
+// =================================================
+// GOOGLE AUTH
+// =================================================
+
+const creds = JSON.parse(
+  process.env.GOOGLE_CREDENTIALS
+);
+
 const serviceAccountAuth = new JWT({
   email: creds.client_email,
   key: creds.private_key.replace(/\\n/g, '\n'),
-  scopes: [
-    'https://www.googleapis.com/auth/spreadsheets'
-  ]
+  scopes: ['https://www.googleapis.com/auth/spreadsheets']
 });
 
-// ================= GOOGLE SHEET =================
 const doc = new GoogleSpreadsheet(
   process.env.SHEET_ID,
   serviceAccountAuth
@@ -41,13 +39,15 @@ const doc = new GoogleSpreadsheet(
 // =================================================
 // FORMAT RUPIAH
 // =================================================
+
 function rupiah(angka) {
   return Number(angka).toLocaleString('id-ID');
 }
 
 // =================================================
-// TOTAL TERAKHIR
+// GET TOTAL TERAKHIR
 // =================================================
+
 async function getLastTotal(sheet) {
 
   const rows = await sheet.getRows();
@@ -62,8 +62,9 @@ async function getLastTotal(sheet) {
 }
 
 // =================================================
-// NOMOR OTOMATIS
+// GET NOMOR
 // =================================================
+
 async function getNextNumber(sheet) {
 
   const rows = await sheet.getRows();
@@ -84,6 +85,7 @@ async function getNextNumber(sheet) {
 // =================================================
 // LOAD SHEETS
 // =================================================
+
 async function loadSheets() {
 
   await doc.loadInfo();
@@ -100,6 +102,7 @@ async function loadSheets() {
 // =================================================
 // UPDATE GUDANG
 // =================================================
+
 async function updateGudang(
   gudangSheet,
   barang,
@@ -139,15 +142,17 @@ async function updateGudang(
 }
 
 // =================================================
-// BOT READY
+// READY
 // =================================================
-client.once('ready', () => {
+
+client.once('clientReady', () => {
   console.log(`${client.user.tag} online!`);
 });
 
 // =================================================
 // INTERACTION
 // =================================================
+
 client.on('interactionCreate', async interaction => {
 
   if (!interaction.isChatInputCommand()) return;
@@ -159,6 +164,7 @@ client.on('interactionCreate', async interaction => {
   // =================================================
   // SETORAN
   // =================================================
+
   if (interaction.commandName === 'setoran') {
 
     const password =
@@ -209,25 +215,29 @@ client.on('interactionCreate', async interaction => {
       'add'
     );
 
-    await interaction.editReply({
-      content: `# ✅ SETORAN BERHASIL
+    const embed = new EmbedBuilder()
+      .setColor('Green')
+      .setTitle('✅ SETORAN BERHASIL')
+      .addFields(
+        { name: 'NO', value: nomor, inline: true },
+        { name: 'BARANG', value: barang, inline: true },
+        { name: 'JUMLAH', value: String(jumlah), inline: true },
+        { name: 'MINGGU', value: minggu, inline: true },
+        { name: 'PENERIMA', value: penerima, inline: true },
+        { name: 'KETERANGAN', value: keterangan, inline: false },
+        { name: 'TANGGAL', value: tanggal, inline: false }
+      )
+      .setTimestamp();
 
-\`\`\`
-NO         : ${nomor}
-BARANG     : ${barang}
-JUMLAH     : ${jumlah}
-MINGGU     : ${minggu}
-PENERIMA   : ${penerima}
-KETERANGAN : ${keterangan}
-TANGGAL    : ${tanggal}
-\`\`\`
-`
+    await interaction.editReply({
+      embeds: [embed]
     });
   }
 
   // =================================================
   // CEK SETORAN
   // =================================================
+
   if (interaction.commandName === 'ceksetoran') {
 
     const mingguCari =
@@ -236,66 +246,46 @@ TANGGAL    : ${tanggal}
     const rows =
       await sheets.setoran.getRows();
 
-    const hasil = rows.filter(r => {
-
-      const minggu =
-        r.get('Minggu');
-
-      return minggu === mingguCari;
-    });
+    const hasil = rows.filter(r =>
+      r.get('Minggu') === mingguCari
+    );
 
     if (hasil.length === 0) {
 
-      return interaction.editReply(
-        `❌ Tidak ada setoran minggu ${mingguCari}`
-      );
+      return interaction.editReply({
+        content:
+          `❌ Tidak ada setoran minggu ${mingguCari}`
+      });
     }
 
-    let text = `\`\`\`
-SETORAN MINGGU ${mingguCari}
-------------------------------------------------------------------------------------------------
-NO  | BARANG         | JUMLAH | MINGGU | PENERIMA     | KETERANGAN
-------------------------------------------------------------------------------------------------
-`;
+    const embed = new EmbedBuilder()
+      .setColor('Blue')
+      .setTitle(`📦 SETORAN MINGGU ${mingguCari}`)
+      .setTimestamp();
 
-    hasil.forEach(r => {
+    hasil.slice(0, 25).forEach(r => {
 
-      const no =
-        String(r.get('Nomor'))
-          .padEnd(3, ' ');
+      embed.addFields({
+        name:
+          `${r.get('Nomor')} • ${r.get('Barang')}`,
+        value:
+`Jumlah : ${r.get('Jumlah')}
+Penerima : ${r.get('Penerima')}
+Keterangan : ${r.get('Keterangan')}`,
+        inline: false
+      });
 
-      const barang =
-        String(r.get('Barang'))
-          .padEnd(15, ' ');
-
-      const jumlah =
-        String(r.get('Jumlah'))
-          .padEnd(6, ' ');
-
-      const minggu =
-        String(r.get('Minggu'))
-          .padEnd(6, ' ');
-
-      const penerima =
-        String(r.get('Penerima'))
-          .padEnd(13, ' ');
-
-      const keterangan =
-        String(r.get('Keterangan'));
-
-      text +=
-`${no} | ${barang} | ${jumlah} | ${minggu} | ${penerima} | ${keterangan}
-`;
     });
 
-    text += '```';
-
-    await interaction.editReply(text);
+    await interaction.editReply({
+      embeds: [embed]
+    });
   }
 
   // =================================================
   // GUDANG
   // =================================================
+
   if (interaction.commandName === 'gudang') {
 
     const rows =
@@ -303,40 +293,37 @@ NO  | BARANG         | JUMLAH | MINGGU | PENERIMA     | KETERANGAN
 
     if (rows.length === 0) {
 
-      return interaction.editReply(
-        'Gudang kosong.'
-      );
+      return interaction.editReply({
+        content: 'Gudang kosong.'
+      });
     }
 
-    let text = `\`\`\`
-NO | BARANG              | TOTAL
---------------------------------
-`;
+    const embed = new EmbedBuilder()
+      .setColor('Orange')
+      .setTitle('📦 ISI GUDANG')
+      .setTimestamp();
 
-    rows.forEach((r, index) => {
+    rows.slice(0, 25).forEach((r, index) => {
 
-      const no =
-        String(index + 1).padEnd(2, ' ');
+      embed.addFields({
+        name:
+          `${index + 1}. ${r.get('Barang')}`,
+        value:
+          `Total : ${r.get('Total')}`,
+        inline: true
+      });
 
-      const barang =
-        String(r.get('Barang'))
-          .padEnd(20, ' ');
-
-      const total =
-        String(r.get('Total'));
-
-      text += `${no} | ${barang} | ${total}
-`;
     });
 
-    text += '```';
-
-    await interaction.editReply(text);
+    await interaction.editReply({
+      embeds: [embed]
+    });
   }
 
   // =================================================
   // PEMASUKAN
   // =================================================
+
   if (interaction.commandName === 'pemasukan') {
 
     const password =
@@ -393,25 +380,29 @@ NO | BARANG              | TOTAL
         ? '💷'
         : '💵';
 
-    await interaction.editReply({
-      content: `# ${icon} PEMASUKAN BERHASIL
+    const embed = new EmbedBuilder()
+      .setColor('Green')
+      .setTitle(`${icon} PEMASUKAN BERHASIL`)
+      .addFields(
+        { name: 'NO', value: nomor, inline: true },
+        { name: 'TYPE', value: type.toUpperCase(), inline: true },
+        { name: 'KELOMPOK', value: kelompok, inline: true },
+        { name: 'JUMLAH', value: `Rp ${rupiah(jumlah)}`, inline: true },
+        { name: 'TOTAL BARU', value: `Rp ${rupiah(totalBaru)}`, inline: true },
+        { name: 'KETERANGAN', value: keterangan, inline: false },
+        { name: 'TANGGAL', value: tanggal, inline: false }
+      )
+      .setTimestamp();
 
-\`\`\`
-NO          : ${nomor}
-TYPE        : ${type.toUpperCase()}
-KELOMPOK    : ${kelompok}
-JUMLAH      : Rp ${rupiah(jumlah)}
-TOTAL BARU  : Rp ${rupiah(totalBaru)}
-KETERANGAN  : ${keterangan}
-TANGGAL     : ${tanggal}
-\`\`\`
-`
+    await interaction.editReply({
+      embeds: [embed]
     });
   }
 
   // =================================================
   // PENGELUARAN
   // =================================================
+
   if (interaction.commandName === 'pengeluaran') {
 
     const password =
@@ -475,25 +466,119 @@ TANGGAL     : ${tanggal}
         ? '💷'
         : '💵';
 
-    await interaction.editReply({
-      content: `# ${icon} PENGELUARAN BERHASIL
+    const embed = new EmbedBuilder()
+      .setColor('Red')
+      .setTitle(`${icon} PENGELUARAN BERHASIL`)
+      .addFields(
+        { name: 'NO', value: nomor, inline: true },
+        { name: 'TYPE', value: type.toUpperCase(), inline: true },
+        { name: 'KELOMPOK', value: kelompok, inline: true },
+        { name: 'JUMLAH', value: `Rp ${rupiah(jumlah)}`, inline: true },
+        { name: 'TOTAL BARU', value: `Rp ${rupiah(totalBaru)}`, inline: true },
+        { name: 'KETERANGAN', value: keterangan, inline: false },
+        { name: 'TANGGAL', value: tanggal, inline: false }
+      )
+      .setTimestamp();
 
-\`\`\`
-NO          : ${nomor}
-TYPE        : ${type.toUpperCase()}
-KELOMPOK    : ${kelompok}
-JUMLAH      : Rp ${rupiah(jumlah)}
-TOTAL BARU  : Rp ${rupiah(totalBaru)}
-KETERANGAN  : ${keterangan}
-TANGGAL     : ${tanggal}
-\`\`\`
-`
+    await interaction.editReply({
+      embeds: [embed]
+    });
+  }
+
+  // =================================================
+  // CEK PEMASUKAN
+  // =================================================
+
+  if (interaction.commandName === 'cekpemasukan') {
+
+    const type =
+      interaction.options.getString('type');
+
+    const sheet =
+      type === 'dirty'
+        ? sheets.dirty
+        : sheets.legal;
+
+    const rows =
+      await sheet.getRows();
+
+    const hasil = rows.filter(r =>
+      r.get('Type') === 'pemasukan'
+    );
+
+    const embed = new EmbedBuilder()
+      .setColor('Green')
+      .setTitle(`💰 CEK PEMASUKAN ${type.toUpperCase()}`)
+      .setTimestamp();
+
+    hasil.slice(-25).reverse().forEach(r => {
+
+      embed.addFields({
+        name:
+          `${r.get('Nomor')} • Rp ${rupiah(r.get('Jumlah'))}`,
+        value:
+`Kelompok : ${r.get('Kelompok')}
+Keterangan : ${r.get('Keterangan')}
+Total : Rp ${rupiah(r.get('Total'))}`,
+        inline: false
+      });
+
+    });
+
+    await interaction.editReply({
+      embeds: [embed]
+    });
+  }
+
+  // =================================================
+  // CEK PENGELUARAN
+  // =================================================
+
+  if (interaction.commandName === 'cekpengeluaran') {
+
+    const type =
+      interaction.options.getString('type');
+
+    const sheet =
+      type === 'dirty'
+        ? sheets.dirty
+        : sheets.legal;
+
+    const rows =
+      await sheet.getRows();
+
+    const hasil = rows.filter(r =>
+      r.get('Type') === 'pengeluaran'
+    );
+
+    const embed = new EmbedBuilder()
+      .setColor('Red')
+      .setTitle(`💸 CEK PENGELUARAN ${type.toUpperCase()}`)
+      .setTimestamp();
+
+    hasil.slice(-25).reverse().forEach(r => {
+
+      embed.addFields({
+        name:
+          `${r.get('Nomor')} • Rp ${rupiah(r.get('Jumlah'))}`,
+        value:
+`Kelompok : ${r.get('Kelompok')}
+Keterangan : ${r.get('Keterangan')}
+Total : Rp ${rupiah(r.get('Total'))}`,
+        inline: false
+      });
+
+    });
+
+    await interaction.editReply({
+      embeds: [embed]
     });
   }
 
   // =================================================
   // SALDO
   // =================================================
+
   if (interaction.commandName === 'saldo') {
 
     const dirtyTotal =
@@ -502,21 +587,28 @@ TANGGAL     : ${tanggal}
     const legalTotal =
       await getLastTotal(sheets.legal);
 
+    const embed = new EmbedBuilder()
+      .setColor('Gold')
+      .setTitle('💰 SALDO GANG')
+      .addFields(
+        {
+          name: '💷 DIRTY MONEY',
+          value: `Rp ${rupiah(dirtyTotal)}`,
+          inline: false
+        },
+        {
+          name: '💵 LEGAL MONEY',
+          value: `Rp ${rupiah(legalTotal)}`,
+          inline: false
+        }
+      )
+      .setTimestamp();
+
     await interaction.editReply({
-      content: `# 💰 SALDO GANG
-
-\`\`\`
-💷 DIRTY MONEY : Rp ${rupiah(dirtyTotal)}
-
-💵 LEGAL MONEY : Rp ${rupiah(legalTotal)}
-\`\`\`
-`
+      embeds: [embed]
     });
   }
 
 });
 
-// =================================================
-// LOGIN
-// =================================================
 client.login(process.env.TOKEN);
