@@ -58,76 +58,6 @@ const commands = [
     ),
 
   // =================================================
-  // DEPOSIT
-  // =================================================
-  new SlashCommandBuilder()
-    .setName('deposit')
-    .setDescription('Simpan barang ke brangkas')
-
-    .addStringOption(option =>
-      option
-        .setName('barang')
-        .setDescription('Nama barang')
-        .setRequired(true)
-    )
-
-    .addIntegerOption(option =>
-      option
-        .setName('jumlah')
-        .setDescription('Jumlah barang')
-        .setRequired(true)
-    )
-
-    .addStringOption(option =>
-      option
-        .setName('keterangan')
-        .setDescription('Keterangan')
-        .setRequired(true)
-    )
-
-    .addStringOption(option =>
-      option
-        .setName('password')
-        .setDescription('Password bot')
-        .setRequired(true)
-    ),
-
-  // =================================================
-  // WITHDRAW
-  // =================================================
-  new SlashCommandBuilder()
-    .setName('withdraw')
-    .setDescription('Ambil barang dari brangkas')
-
-    .addStringOption(option =>
-      option
-        .setName('barang')
-        .setDescription('Nama barang')
-        .setRequired(true)
-    )
-
-    .addIntegerOption(option =>
-      option
-        .setName('jumlah')
-        .setDescription('Jumlah barang')
-        .setRequired(true)
-    )
-
-    .addStringOption(option =>
-      option
-        .setName('keterangan')
-        .setDescription('Keterangan')
-        .setRequired(true)
-    )
-
-    .addStringOption(option =>
-      option
-        .setName('password')
-        .setDescription('Password bot')
-        .setRequired(true)
-    ),
-
-  // =================================================
   // CEK SETORAN
   // =================================================
   new SlashCommandBuilder()
@@ -237,6 +167,42 @@ const commands = [
       option
         .setName('password')
         .setDescription('Password bot')
+        .setRequired(true)
+    ),
+
+  // =================================================
+  // CEK PEMASUKAN
+  // =================================================
+  new SlashCommandBuilder()
+    .setName('cekpemasukan')
+    .setDescription('Cek data pemasukan')
+
+    .addStringOption(option =>
+      option
+        .setName('type')
+        .setDescription('dirty atau legal')
+        .addChoices(
+          { name: '💷 Dirty Money', value: 'dirty' },
+          { name: '💵 Legal Money', value: 'legal' }
+        )
+        .setRequired(true)
+    ),
+
+  // =================================================
+  // CEK PENGELUARAN
+  // =================================================
+  new SlashCommandBuilder()
+    .setName('cekpengeluaran')
+    .setDescription('Cek data pengeluaran')
+
+    .addStringOption(option =>
+      option
+        .setName('type')
+        .setDescription('dirty atau legal')
+        .addChoices(
+          { name: '💷 Dirty Money', value: 'dirty' },
+          { name: '💵 Legal Money', value: 'legal' }
+        )
         .setRequired(true)
     ),
 
