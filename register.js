@@ -72,6 +72,76 @@ const commands = [
     .setDescription('Cek isi gudang'),
 
   // =================================================
+  // DEPOSIT
+  // =================================================
+  new SlashCommandBuilder()
+    .setName('deposit')
+    .setDescription('Simpan barang ke brangkas')
+
+    .addStringOption(option =>
+      option
+        .setName('barang')
+        .setDescription('Nama barang')
+        .setRequired(true)
+    )
+
+    .addIntegerOption(option =>
+      option
+        .setName('jumlah')
+        .setDescription('Jumlah barang')
+        .setRequired(true)
+    )
+
+    .addStringOption(option =>
+      option
+        .setName('keterangan')
+        .setDescription('Keterangan')
+        .setRequired(true)
+    )
+
+    .addStringOption(option =>
+      option
+        .setName('password')
+        .setDescription('Password bot')
+        .setRequired(true)
+    ),
+
+  // =================================================
+  // WITHDRAW
+  // =================================================
+  new SlashCommandBuilder()
+    .setName('withdraw')
+    .setDescription('Ambil barang dari brangkas')
+
+    .addStringOption(option =>
+      option
+        .setName('barang')
+        .setDescription('Nama barang')
+        .setRequired(true)
+    )
+
+    .addIntegerOption(option =>
+      option
+        .setName('jumlah')
+        .setDescription('Jumlah barang')
+        .setRequired(true)
+    )
+
+    .addStringOption(option =>
+      option
+        .setName('keterangan')
+        .setDescription('Keterangan')
+        .setRequired(true)
+    )
+
+    .addStringOption(option =>
+      option
+        .setName('password')
+        .setDescription('Password bot')
+        .setRequired(true)
+    ),
+
+  // =================================================
   // PEMASUKAN
   // =================================================
   new SlashCommandBuilder()
