@@ -740,6 +740,127 @@ NO  | KELOMPOK     | JUMLAH       | KETERANGAN
       });
     }
 
+  // =================================================
+  // DEPOSIT
+  // =================================================
+  if (interaction.commandName === 'deposit') {
+
+    const password =
+      interaction.options.getString('password');
+
+    if (password !== process.env.PASSWORD_BOT) {
+
+      return interaction.editReply({
+        content: '❌ Password salah.'
+      });
+    }
+
+    const nomor =
+      await getNextNumber(sheets.brangkas);
+
+    const barang =
+      interaction.options.getString('barang');
+
+    const jumlah =
+      interaction.options.getInteger('jumlah');
+
+    const keterangan =
+      interaction.options.getString('keterangan');
+
+    const tanggal =
+      new Date().toLocaleDateString('id-ID');
+
+    await sheets.brangkas.addRow({
+      Nomor: nomor,
+      Barang: barang,
+      Jumlah: jumlah,
+      Keterangan: keterangan,
+      Tanggal: tanggal,
+      Type: 'deposit'
+    });
+
+    await updateGudang(
+      sheets.gudang,
+      barang,
+      jumlah,
+      'add'
+    );
+
+    await interaction.editReply({
+      content: `# 📥 DEPOSIT BERHASIL
+
+\`\`\`
+NO         : ${nomor}
+BARANG     : ${barang}
+JUMLAH     : ${jumlah}
+AKSI       : DEPOSIT
+KETERANGAN : ${keterangan}
+TANGGAL    : ${tanggal}
+\`\`\`
+`
+    });
+  }
+
+  // =================================================
+  // WITHDRAW
+  // =================================================
+  if (interaction.commandName === 'withdraw') {
+
+    const password =
+      interaction.options.getString('password');
+
+    if (password !== process.env.PASSWORD_BOT) {
+
+      return interaction.editReply({
+        content: '❌ Password salah.'
+      });
+    }
+
+    const nomor =
+      await getNextNumber(sheets.brangkas);
+
+    const barang =
+      interaction.options.getString('barang');
+
+    const jumlah =
+      interaction.options.getInteger('jumlah');
+
+    const keterangan =
+      interaction.options.getString('keterangan');
+
+    const tanggal =
+      new Date().toLocaleDateString('id-ID');
+
+    await sheets.brangkas.addRow({
+      Nomor: nomor,
+      Barang: barang,
+      Jumlah: jumlah,
+      Keterangan: keterangan,
+      Tanggal: tanggal,
+      Type: 'withdraw'
+    });
+
+    await updateGudang(
+      sheets.gudang,
+      barang,
+      jumlah,
+      'remove'
+    );
+
+    await interaction.editReply({
+      content: `# 📤 WITHDRAW BERHASIL
+
+\`\`\`
+NO         : ${nomor}
+BARANG     : ${barang}
+JUMLAH     : ${jumlah}
+AKSI       : WITHDRAW
+KETERANGAN : ${keterangan}
+TANGGAL    : ${tanggal}
+\`\`\`
+`
+    });
+  }
     // =================================================
     // CEK PENGELUARAN
     // =================================================
