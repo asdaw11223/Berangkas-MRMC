@@ -111,11 +111,70 @@ async function loadSheets() {
 
   return {
     setoran: doc.sheetsByTitle['SETORAN'],
+    member: doc.sheetsByTitle['MEMBER'],
     brangkas: doc.sheetsByTitle['BRANGKAS'],
     gudang: doc.sheetsByTitle['GUDANG'],
     dirty: doc.sheetsByTitle['DIRTY'],
     legal: doc.sheetsByTitle['LEGAL']
   };
+}
+
+// =================================================
+// UPDATE MEMBER
+// =================================================
+
+async function updateMember(
+  memberSheet,
+  nama,
+  barang,
+  jumlah,
+  minggu
+) {
+
+  const rows =
+    await memberSheet.getRows();
+
+  const item = rows.find(r =>
+
+    r.get('Nama')
+      ?.toLowerCase() ===
+    nama.toLowerCase()
+
+    &&
+
+    r.get('Setoran')
+      ?.toLowerCase() ===
+    barang.toLowerCase()
+
+    &&
+
+    r.get('Minggu') === minggu
+  );
+
+  if (item) {
+
+    let total =
+      parseInt(item.get('Jumlah')) || 0;
+
+    total += jumlah;
+
+    item.set('Jumlah', total);
+
+    await item.save();
+
+  } else {
+
+    const nomor =
+      await getNextNumber(memberSheet);
+
+    await memberSheet.addRow({
+      Nomor: nomor,
+      Nama: nama,
+      Setoran: barang,
+      Jumlah: jumlah,
+      Minggu: minggu
+    });
+  }
 }
 
 // =================================================
@@ -188,184 +247,184 @@ client.on(
 
     const sheets =
       await loadSheets();
+// ================================================= // SETORAN // ================================================= 
+    if ( interaction.commandName === 'setoran' ) { 
+      const nomor = await getNextNumber( sheets.setoran ); 
+      const barang = interaction.options.getString( 'barang' ); 
+      const jumlah = interaction.options.getInteger( 'jumlah' ); 
+      const penyetor = interaction.options.getString( 'penyetor' ); 
+      const penerima = interaction.options.getString( 'penerima' ); 
+      const minggu = interaction.options.getString( 'minggu' ); 
+      const keterangan = interaction.options.getString( 'keterangan' ); 
+      const tanggal = new Date() .toLocaleDateString( 'id-ID' );
 
-    // =================================================
-    // SETORAN
-    // =================================================
+      await sheets.setoran.addRow({ 
+        Nomor: nomor, 
+        Barang: barang, 
+        Jumlah: jumlah, 
+        Tanggal: tanggal, 
+        Keterangan: keterangan, 
+        Penerima: penerima, 
+        Minggu: minggu, 
+        Penyetor: penyetor });
 
-    if (
-      interaction.commandName === 'setoran'
-    ) {
+      await updateGudang( sheets.gudang, barang, jumlah, 'add' );
+      await updateMember( sheets.member, penyetor, barang, jumlah, minggu );
 
-      // const password =
-      //   interaction.options.getString(
-      //     'password'
-      //   );
+      let text = `\`\`\` NO : ${nomor} BARANG : ${barang} JUMLAH : ${jumlah} TANGGAL : ${tanggal} KETERANGAN : ${keterangan} PENERIMA : ${penerima} MINGGU : ${minggu} PENYETOR : ${penyetor} \`\`\` `;
 
-      // if (
-      //   password !==
-      //   process.env.PASSWORD_BOT
-      // ) {
+     const embed = new EmbedBuilder() .setColor('Green') .setTitle( '✅ SETORAN BERHASIL' ) .setDescription(text); await interaction.editReply({ embeds: [embed] });
+    }
+    
+// =================================================
+// CEK SETORAN MEMBER
+// =================================================
 
-      //   return interaction.editReply({
-      //     content:
-      //       '❌ Password salah.'
-      //   });
-      // }
+if (
+  interaction.commandName ===
+  'ceksetoran'
+) {
 
-      const nomor =
-        await getNextNumber(
-          sheets.setoran
-        );
+  const mingguCari =
+    interaction.options.getString(
+      'minggu'
+    );
 
-      const barang =
-        interaction.options.getString(
-          'barang'
-        );
+  const rows =
+    await sheets.member.getRows();
 
-      const jumlah =
-        interaction.options.getInteger(
-          'jumlah'
-        );
+  const hasil = rows.filter(r =>
+    r.get('Minggu') ===
+    mingguCari
+  );
 
-      const penerima =
-        interaction.options.getString(
-          'penerima'
-        );
+  if (hasil.length === 0) {
 
-      const minggu =
-        interaction.options.getString(
-          'minggu'
-        );
+    return interaction.editReply({
+      content:
+        `❌ Tidak ada data minggu ${mingguCari}`
+    });
+  }
 
-      const keterangan =
-        interaction.options.getString(
-          'keterangan'
-        );
-
-      const tanggal =
-        new Date()
-          .toLocaleDateString(
-            'id-ID'
-          );
-
-      await sheets.setoran.addRow({
-        Nomor: nomor,
-        Barang: barang,
-        Jumlah: jumlah,
-        Minggu: minggu,
-        Penerima: penerima,
-        Keterangan: keterangan,
-        Tanggal: tanggal
-      });
-
-      await updateGudang(
-        sheets.gudang,
-        barang,
-        jumlah,
-        'add'
-      );
-
-      let text = `\`\`\`
-NO        : ${nomor}
-BARANG    : ${barang}
-JUMLAH    : ${jumlah}
-MINGGU    : ${minggu}
-PENERIMA  : ${penerima}
-KETERANGAN: ${keterangan}
-TANGGAL   : ${tanggal}
-\`\`\`
+  let text = `\`\`\`
+NO  | NAMA           | BARANG         | JUMLAH
+---------------------------------------------------------
 `;
 
-      const embed =
-        new EmbedBuilder()
-          .setColor('Green')
-          .setTitle(
-            '✅ SETORAN BERHASIL'
-          )
-          .setDescription(text);
+  hasil.forEach(r => {
 
-      await interaction.editReply({
-        embeds: [embed]
-      });
-    }
+    const no =
+      String(r.get('Nomor'))
+        .padEnd(3, ' ');
 
-    // =================================================
-    // CEK SETORAN
-    // =================================================
+    const nama =
+      String(r.get('Nama'))
+        .padEnd(14, ' ');
 
-    if (
-      interaction.commandName ===
-      'ceksetoran'
-    ) {
+    const barang =
+      String(r.get('Setoran'))
+        .padEnd(15, ' ');
 
-      const mingguCari =
-        interaction.options.getString(
-          'minggu'
-        );
+    const jumlah =
+      String(r.get('Jumlah'));
 
-      const rows =
-        await sheets.setoran.getRows();
+    text +=
+`${no} | ${nama} | ${barang} | ${jumlah}
+`;
 
-      const hasil = rows.filter(r =>
-        r.get('Minggu') ===
-        mingguCari
-      );
+  });
 
-      if (hasil.length === 0) {
+  text += '```';
 
-        return interaction.editReply({
-          content:
-            `❌ Tidak ada setoran minggu ${mingguCari}`
-        });
-      }
+  const embed =
+    new EmbedBuilder()
+      .setColor('Blue')
+      .setTitle(
+        `📦 SETORAN MEMBER MINGGU ${mingguCari}`
+      )
+      .setDescription(text);
 
-      let text = `\`\`\`
-NO  | BARANG          | JUMLAH | PENERIMA     | KETERANGAN
+  await interaction.editReply({
+    embeds: [embed]
+  });
+}
+
+// =================================================
+// LOG SETORAN
+// =================================================
+
+if (
+  interaction.commandName ===
+  'logsetoran'
+) {
+
+  const mingguCari =
+    interaction.options.getString(
+      'minggu'
+    );
+
+  const rows =
+    await sheets.setoran.getRows();
+
+  const hasil = rows.filter(r =>
+    r.get('Minggu') ===
+    mingguCari
+  );
+
+  if (hasil.length === 0) {
+
+    return interaction.editReply({
+      content:
+        `❌ Tidak ada log minggu ${mingguCari}`
+    });
+  }
+
+  let text = `\`\`\`
+NO  | BARANG         | JUMLAH | PENYETOR     | PENERIMA
 ----------------------------------------------------------------
 `;
 
-      hasil.forEach(r => {
+  hasil.forEach(r => {
 
-        const no =
-          String(r.get('Nomor'))
-            .padEnd(3, ' ');
+    const no =
+      String(r.get('Nomor'))
+        .padEnd(3, ' ');
 
-        const barang =
-          String(r.get('Barang'))
-            .padEnd(15, ' ');
+    const barang =
+      String(r.get('Barang'))
+        .padEnd(15, ' ');
 
-        const jumlah =
-          String(r.get('Jumlah'))
-            .padEnd(6, ' ');
+    const jumlah =
+      String(r.get('Jumlah'))
+        .padEnd(6, ' ');
 
-        const penerima =
-          String(r.get('Penerima'))
-            .padEnd(12, ' ');
+    const penyetor =
+      String(r.get('Penyetor'))
+        .padEnd(12, ' ');
 
-        const keterangan =
-          String(r.get('Keterangan'));
+    const penerima =
+      String(r.get('Penerima'));
 
-        text +=
-`${no} | ${barang} | ${jumlah} | ${penerima} | ${keterangan}
+    text +=
+`${no} | ${barang} | ${jumlah} | ${penyetor} | ${penerima}
 `;
 
-      });
+  });
 
-      text += '```';
+  text += '```';
 
-      const embed =
-        new EmbedBuilder()
-          .setColor('Blue')
-          .setTitle(
-            `📦 SETORAN MINGGU ${mingguCari}`
-          )
-          .setDescription(text);
+  const embed =
+    new EmbedBuilder()
+      .setColor('Blue')
+      .setTitle(
+        `📦 LOG SETORAN MINGGU ${mingguCari}`
+      )
+      .setDescription(text);
 
-      await interaction.editReply({
-        embeds: [embed]
-      });
-    }
+  await interaction.editReply({
+    embeds: [embed]
+  });
+}
 
     // =================================================
     // GUDANG
