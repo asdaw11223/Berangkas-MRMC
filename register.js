@@ -29,6 +29,16 @@ const commands = [
         .setRequired(true)
     )
 
+    // =================================================
+    // PENYETOR BARU
+    // =================================================
+    .addStringOption(option =>
+      option
+        .setName('penyetor')
+        .setDescription('Nama penyetor')
+        .setRequired(true)
+    )
+
     .addStringOption(option =>
       option
         .setName('penerima')
@@ -55,7 +65,21 @@ const commands = [
   // =================================================
   new SlashCommandBuilder()
     .setName('ceksetoran')
-    .setDescription('Cek setoran berdasarkan minggu')
+    .setDescription('Cek setoran member berdasarkan minggu')
+
+    .addStringOption(option =>
+      option
+        .setName('minggu')
+        .setDescription('Masukkan minggu')
+        .setRequired(true)
+    ),
+
+  // =================================================
+  // LOG SETORAN BARU
+  // =================================================
+  new SlashCommandBuilder()
+    .setName('logsetoran')
+    .setDescription('Cek log setoran full')
 
     .addStringOption(option =>
       option
