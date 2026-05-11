@@ -271,7 +271,16 @@ client.on(
       await updateGudang( sheets.gudang, barang, jumlah, 'add' );
       await updateMember( sheets.member, penyetor, barang, jumlah, minggu );
 
-      let text = `\`\`\` NO : ${nomor} BARANG : ${barang} JUMLAH : ${jumlah} TANGGAL : ${tanggal} KETERANGAN : ${keterangan} PENERIMA : ${penerima} MINGGU : ${minggu} PENYETOR : ${penyetor} \`\`\` `;
+      let text = `\`\`\` 
+      NO : ${nomor} 
+      BARANG : ${barang} 
+      JUMLAH : ${jumlah} 
+      TANGGAL : ${tanggal} 
+      KETERANGAN : ${keterangan} 
+      PENERIMA : ${penerima} 
+      MINGGU : ${minggu} 
+      PENYETOR : ${penyetor} 
+      \`\`\` `;
 
      const embed = new EmbedBuilder() .setColor('Green') .setTitle( '✅ SETORAN BERHASIL' ) .setDescription(text); await interaction.editReply({ embeds: [embed] });
     }
