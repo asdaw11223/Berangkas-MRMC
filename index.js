@@ -180,7 +180,6 @@ async function updateMember(
 // =================================================
 // UPDATE GUDANG
 // =================================================
-
 async function updateGudang(
   gudangSheet,
   barang,
@@ -202,22 +201,58 @@ async function updateGudang(
     let total =
       parseInt(item.get('Total')) || 0;
 
+    // =========================
+    // VALIDASI STOK
+    // =========================
+
+    if (
+      type === 'remove' &&
+      jumlah > total
+    ) {
+
+      return {
+        success: false,
+        stock: total
+      };
+    }
+
     if (type === 'add') {
       total += jumlah;
     } else {
       total -= jumlah;
     }
 
+    // biar ga minus
+    if (total < 0) {
+      total = 0;
+    }
+
     item.set('Total', total);
 
     await item.save();
 
+    return {
+      success: true
+    };
+
   } else {
+
+    if (type === 'remove') {
+
+      return {
+        success: false,
+        stock: 0
+      };
+    }
 
     await gudangSheet.addRow({
       Barang: barang,
       Total: jumlah
     });
+
+    return {
+      success: true
+    };
   }
 }
 
@@ -914,12 +949,25 @@ TANGGAL    : ${tanggal}
       Type: 'withdraw'
     });
 
-    await updateGudang(
-      sheets.gudang,
-      barang,
-      jumlah,
-      'remove'
-    );
+    const gudangResult =
+  await updateGudang(
+    sheets.gudang,
+    barang,
+    jumlah,
+    'remove'
+  );
+
+if (!gudangResult.success) {
+
+  return interaction.editReply({
+    content:
+`❌ STOCK TIDAK CUKUP
+
+STOCK SAAT INI:
+${gudangResult.stock}
+`
+  });
+}
 
     await interaction.editReply({
       content: `# 📤 WITHDRAW BERHASIL
