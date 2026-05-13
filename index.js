@@ -656,7 +656,43 @@ TANGGAL    : ${tanggal}
           });
         }
 
-      }
+      }// =================================================
+// SALDO
+// =================================================
+
+if (
+  interaction.commandName ===
+  'saldo'
+) {
+
+  const rows =
+    await sheets.gudang.getRows();
+
+  if (rows.length === 0) {
+
+    return interaction.editReply({
+      content: 'Gudang kosong.'
+    });
+  }
+
+  let text = '```\\n';
+
+  rows.forEach(r => {
+
+    text +=
+`${r.get('Barang')} : ${r.get('Total')}
+`;
+  });
+
+  text += '```';
+
+  return interaction.editReply({
+    content:
+`# 💰 SALDO GUDANG
+
+${text}`
+  });
+}
 
       // =============================================
       // SELECT MENU
