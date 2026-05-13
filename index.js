@@ -1,3 +1,4 @@
+````js
 // =================================================
 // REQUIRE
 // =================================================
@@ -7,12 +8,7 @@ require('dotenv').config();
 const {
   Client,
   GatewayIntentBits,
-  EmbedBuilder,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  ActionRowBuilder,
-  StringSelectMenuBuilder
+  EmbedBuilder
 } = require('discord.js');
 
 const {
@@ -53,10 +49,17 @@ const doc = new GoogleSpreadsheet(
 );
 
 // =================================================
+// GLOBAL SHEETS
+// =================================================
+
+let sheets = {};
+
+// =================================================
 // FORMAT RUPIAH
 // =================================================
 
 function rupiah(angka) {
+
   return Number(angka)
     .toLocaleString('id-ID');
 }
@@ -67,16 +70,20 @@ function rupiah(angka) {
 
 async function getLastTotal(sheet) {
 
-  const rows = await sheet.getRows();
+  const rows = await sheet.getRows({
+    limit: 1,
+    offset: Math.max(
+      sheet.rowCount - 2,
+      0
+    )
+  });
 
   if (rows.length === 0) {
     return 0;
   }
 
-  const lastRow = rows[rows.length - 1];
-
-  return parseInt(
-    lastRow.get('Total')
+  return Number(
+    rows[0].get('Total')
   ) || 0;
 }
 
@@ -86,37 +93,23 @@ async function getLastTotal(sheet) {
 
 async function getNextNumber(sheet) {
 
-  const rows = await sheet.getRows();
+  const rows = await sheet.getRows({
+    limit: 1,
+    offset: Math.max(
+      sheet.rowCount - 2,
+      0
+    )
+  });
 
   if (rows.length === 0) {
     return '001';
   }
 
-  const lastRow = rows[rows.length - 1];
+  const last =
+    Number(rows[0].get('Nomor')) || 0;
 
-  const lastNumber =
-    parseInt(lastRow.get('Nomor')) || 0;
-
-  return String(lastNumber + 1)
+  return String(last + 1)
     .padStart(3, '0');
-}
-
-// =================================================
-// LOAD SHEET
-// =================================================
-
-async function loadSheets() {
-
-  await doc.loadInfo();
-
-  return {
-    setoran: doc.sheetsByTitle['SETORAN'],
-    member: doc.sheetsByTitle['MEMBER'],
-    brangkas: doc.sheetsByTitle['BRANGKAS'],
-    gudang: doc.sheetsByTitle['GUDANG'],
-    dirty: doc.sheetsByTitle['DIRTY'],
-    legal: doc.sheetsByTitle['LEGAL']
-  };
 }
 
 // =================================================
@@ -154,7 +147,7 @@ async function updateMember(
   if (item) {
 
     let total =
-      parseInt(item.get('Jumlah')) || 0;
+      Number(item.get('Jumlah')) || 0;
 
     total += jumlah;
 
@@ -197,39 +190,94 @@ async function updateGudang(
     barang.toLowerCase()
   );
 
-  if (item) {
+  // =========================
+  // BARANG BELUM ADA
+  // =========================
 
-    let total =
-      parseInt(item.get('Total')) || 0;
+  if (!item) {
 
-    if (type === 'add') {
-      total += jumlah;
-    } else {
-      total -= jumlah;
+    if (type === 'remove') {
+      throw new Error(
+        'BARANG_TIDAK_ADA'
+      );
     }
-
-    item.set('Total', total);
-
-    await item.save();
-
-  } else {
 
     await gudangSheet.addRow({
       Barang: barang,
       Total: jumlah
     });
+
+    return;
   }
+
+  let total =
+    Number(item.get('Total')) || 0;
+
+  // =========================
+  // ADD
+  // =========================
+
+  if (type === 'add') {
+
+    total += jumlah;
+
+  }
+
+  // =========================
+  // REMOVE
+  // =========================
+
+  else {
+
+    if (jumlah > total) {
+      throw new Error(
+        'STOK_TIDAK_CUKUP'
+      );
+    }
+
+    total -= jumlah;
+  }
+
+  item.set('Total', total);
+
+  await item.save();
 }
 
 // =================================================
 // READY
 // =================================================
 
-client.once('clientReady', () => {
-  console.log(
-    `${client.user.tag} online!`
-  );
-});
+client.once(
+  'clientReady',
+  async () => {
+
+    await doc.loadInfo();
+
+    sheets = {
+      setoran:
+        doc.sheetsByTitle['SETORAN'],
+
+      member:
+        doc.sheetsByTitle['MEMBER'],
+
+      brangkas:
+        doc.sheetsByTitle['BRANGKAS'],
+
+      gudang:
+        doc.sheetsByTitle['GUDANG'],
+
+      dirty:
+        doc.sheetsByTitle['DIRTY'],
+
+      legal:
+        doc.sheetsByTitle['LEGAL']
+    };
+
+    console.log(
+      `${client.user.tag} online!`
+    );
+  }
+);
 
 // =================================================
 // INTERACTION
@@ -239,777 +287,442 @@ client.on(
   'interactionCreate',
   async interaction => {
 
-    if (
-      !interaction.isChatInputCommand()
-    ) return;
+    try {
 
-    await interaction.deferReply();
+      // =============================================
+      // CHAT COMMAND
+      // =============================================
 
-    const sheets =
-      await loadSheets();
-// ================================================= // SETORAN // ================================================= 
-    if ( interaction.commandName === 'setoran' ) { 
-      const nomor = await getNextNumber( sheets.setoran ); 
-      const barang = interaction.options.getString( 'barang' ); 
-      const jumlah = interaction.options.getInteger( 'jumlah' ); 
-      const penyetor = interaction.options.getString( 'penyetor' ); 
-      const penerima = interaction.options.getString( 'penerima' ); 
-      const minggu = interaction.options.getString( 'minggu' ); 
-      const keterangan = interaction.options.getString( 'keterangan' ); 
-      const tanggal = new Date() .toLocaleDateString( 'id-ID' );
+      if (
+        interaction.isChatInputCommand()
+      ) {
 
-      await sheets.setoran.addRow({ 
-        Nomor: nomor, 
-        Barang: barang, 
-        Jumlah: jumlah, 
-        Tanggal: tanggal, 
-        Keterangan: keterangan, 
-        Penerima: penerima, 
-        Minggu: minggu, 
-        Penyetor: penyetor });
+        await interaction.deferReply();
 
-      await updateGudang( sheets.gudang, barang, jumlah, 'add' );
-      await updateMember( sheets.member, penyetor, barang, jumlah, minggu );
+        // =================================================
+        // SETORAN
+        // =================================================
 
-      let text = `\`\`\`
-NO : ${nomor}
-BARANG : ${barang}
-JUMLAH : ${jumlah} 
-TANGGAL : ${tanggal} 
-KETERANGAN : ${keterangan} 
-PENERIMA : ${penerima} 
-MINGGU : ${minggu} 
-PENYETOR : ${penyetor} 
+        if (
+          interaction.commandName ===
+          'setoran'
+        ) {
+
+          const nomor =
+            await getNextNumber(
+              sheets.setoran
+            );
+
+          const barang =
+            interaction.options.getString(
+              'barang'
+            );
+
+          const jumlah =
+            interaction.options.getInteger(
+              'jumlah'
+            );
+
+          const penyetor =
+            interaction.options.getString(
+              'penyetor'
+            );
+
+          const penerima =
+            interaction.options.getString(
+              'penerima'
+            );
+
+          const minggu =
+            interaction.options.getString(
+              'minggu'
+            );
+
+          const keterangan =
+            interaction.options.getString(
+              'keterangan'
+            );
+
+          const tanggal =
+            new Date()
+              .toLocaleDateString(
+                'id-ID'
+              );
+
+          await sheets.setoran.addRow({
+
+            Nomor: nomor,
+            Barang: barang,
+            Jumlah: jumlah,
+            Tanggal: tanggal,
+            Keterangan: keterangan,
+            Penerima: penerima,
+            Minggu: minggu,
+            Penyetor: penyetor
+          });
+
+          await updateGudang(
+            sheets.gudang,
+            barang,
+            jumlah,
+            'add'
+          );
+
+          await updateMember(
+            sheets.member,
+            penyetor,
+            barang,
+            jumlah,
+            minggu
+          );
+
+          const embed =
+            new EmbedBuilder()
+              .setColor('Green')
+              .setTitle(
+                '✅ SETORAN BERHASIL'
+              )
+              .setDescription(
+`\`\`\`
+NO         : ${nomor}
+BARANG     : ${barang}
+JUMLAH     : ${jumlah}
+TANGGAL    : ${tanggal}
+KETERANGAN : ${keterangan}
+PENERIMA   : ${penerima}
+MINGGU     : ${minggu}
+PENYETOR   : ${penyetor}
 \`\`\`
-`;
+`
+              );
 
-     const embed = new EmbedBuilder() .setColor('Green') .setTitle( '✅ SETORAN BERHASIL' ) .setDescription(text); await interaction.editReply({ embeds: [embed] });
-    }
-    
-// =================================================
-// CEK SETORAN MEMBER
-// =================================================
+          return interaction.editReply({
+            embeds: [embed]
+          });
+        }
 
-if (
-  interaction.commandName ===
-  'ceksetoran'
-) {
+        // =================================================
+        // GUDANG
+        // =================================================
 
-  const mingguCari =
-    interaction.options.getString(
-      'minggu'
-    );
+        if (
+          interaction.commandName ===
+          'gudang'
+        ) {
 
-  const rows =
-    await sheets.member.getRows();
+          const rows =
+            await sheets.gudang.getRows({
+              limit: 50
+            });
 
-  const hasil = rows.filter(r =>
-    r.get('Minggu') ===
-    mingguCari
-  );
+          if (rows.length === 0) {
 
-  if (hasil.length === 0) {
+            return interaction.editReply({
+              content:
+                'Gudang kosong.'
+            });
+          }
 
-    return interaction.editReply({
-      content:
-        `❌ Tidak ada data minggu ${mingguCari}`
-    });
-  }
-
-  let text = `\`\`\`
-NO  | NAMA           | BARANG         | JUMLAH
----------------------------------------------------------
-`;
-
-  hasil.forEach(r => {
-
-    const no =
-      String(r.get('Nomor'))
-        .padEnd(3, ' ');
-
-    const nama =
-      String(r.get('Nama'))
-        .padEnd(14, ' ');
-
-    const barang =
-      String(r.get('Setoran'))
-        .padEnd(15, ' ');
-
-    const jumlah =
-      String(r.get('Jumlah'));
-
-    text +=
-`${no} | ${nama} | ${barang} | ${jumlah}
-`;
-
-  });
-
-  text += '```';
-
-  const embed =
-    new EmbedBuilder()
-      .setColor('Blue')
-      .setTitle(
-        `📦 SETORAN MEMBER MINGGU ${mingguCari}`
-      )
-      .setDescription(text);
-
-  await interaction.editReply({
-    embeds: [embed]
-  });
-}
-
-// =================================================
-// LOG SETORAN
-// =================================================
-
-if (
-  interaction.commandName ===
-  'logsetoran'
-) {
-
-  const mingguCari =
-    interaction.options.getString(
-      'minggu'
-    );
-
-  const rows =
-    await sheets.setoran.getRows();
-
-  const hasil = rows.filter(r =>
-    r.get('Minggu') ===
-    mingguCari
-  );
-
-  if (hasil.length === 0) {
-
-    return interaction.editReply({
-      content:
-        `❌ Tidak ada log minggu ${mingguCari}`
-    });
-  }
-
-  let text = `\`\`\`
-NO  | BARANG         | JUMLAH | PENYETOR     | PENERIMA
-----------------------------------------------------------------
-`;
-
-  hasil.forEach(r => {
-
-    const no =
-      String(r.get('Nomor'))
-        .padEnd(3, ' ');
-
-    const barang =
-      String(r.get('Barang'))
-        .padEnd(15, ' ');
-
-    const jumlah =
-      String(r.get('Jumlah'))
-        .padEnd(6, ' ');
-
-    const penyetor =
-      String(r.get('Penyetor'))
-        .padEnd(12, ' ');
-
-    const penerima =
-      String(r.get('Penerima'));
-
-    text +=
-`${no} | ${barang} | ${jumlah} | ${penyetor} | ${penerima}
-`;
-
-  });
-
-  text += '```';
-
-  const embed =
-    new EmbedBuilder()
-      .setColor('Blue')
-      .setTitle(
-        `📦 LOG SETORAN MINGGU ${mingguCari}`
-      )
-      .setDescription(text);
-
-  await interaction.editReply({
-    embeds: [embed]
-  });
-}
-
-    // =================================================
-    // GUDANG
-    // =================================================
-
-    if (
-      interaction.commandName ===
-      'gudang'
-    ) {
-
-      const rows =
-        await sheets.gudang.getRows();
-
-      if (rows.length === 0) {
-
-        return interaction.editReply({
-          content:
-            'Gudang kosong.'
-        });
-      }
-
-      let text = `\`\`\`
+          let text = `\`\`\`
 NO  | BARANG               | TOTAL
 ---------------------------------------
 `;
 
-      rows.forEach((r, index) => {
+          rows.forEach((r, i) => {
 
-        const no =
-          String(index + 1)
-            .padEnd(3, ' ');
+            const no =
+              String(i + 1)
+                .padEnd(3, ' ');
 
-        const barang =
-          String(r.get('Barang'))
-            .padEnd(20, ' ');
+            const barang =
+              String(r.get('Barang'))
+                .padEnd(20, ' ');
 
-        const total =
-          String(r.get('Total'));
+            const total =
+              String(r.get('Total'));
 
-        text +=
+            text +=
 `${no} | ${barang} | ${total}
 `;
+          });
 
-      });
+          text += '```';
 
-      text += '```';
+          const embed =
+            new EmbedBuilder()
+              .setColor('Orange')
+              .setTitle(
+                '📦 ISI GUDANG'
+              )
+              .setDescription(text);
 
-      const embed =
-        new EmbedBuilder()
-          .setColor('Orange')
-          .setTitle(
-            '📦 ISI GUDANG'
-          )
-          .setDescription(text);
+          return interaction.editReply({
+            embeds: [embed]
+          });
+        }
 
-      await interaction.editReply({
-        embeds: [embed]
-      });
-    }
+        // =================================================
+        // DEPOSIT
+        // =================================================
 
-    // =================================================
-    // SALDO
-    // =================================================
+        if (
+          interaction.commandName ===
+          'deposit'
+        ) {
 
-    if (
-      interaction.commandName ===
-      'saldo'
-    ) {
+          const password =
+            interaction.options.getString(
+              'password'
+            );
 
-      const dirtyTotal =
-        await getLastTotal(
-          sheets.dirty
-        );
+          if (
+            password !==
+            process.env.PASSWORD_BOT
+          ) {
 
-      const legalTotal =
-        await getLastTotal(
-          sheets.legal
-        );
+            return interaction.editReply({
+              content:
+                '❌ Password salah.'
+            });
+          }
 
-      let text = `\`\`\`
-TYPE            | TOTAL
--------------------------------
-DIRTY MONEY     | Rp ${rupiah(dirtyTotal)}
-LEGAL MONEY     | Rp ${rupiah(legalTotal)}
-\`\`\`
-`;
+          const nomor =
+            await getNextNumber(
+              sheets.brangkas
+            );
 
-      const embed =
-        new EmbedBuilder()
-          .setColor('Gold')
-          .setTitle(
-            '💰 SALDO GANG'
-          )
-          .setDescription(text);
-
-      await interaction.editReply({
-        embeds: [embed]
-      });
-    }
-
-    // =================================================
-    // PEMASUKAN
-    // =================================================
-
-    if (
-      interaction.commandName ===
-      'pemasukan'
-    ) {
-
-      const password =
-        interaction.options.getString(
-          'password'
-        );
-
-      if (
-        password !==
-        process.env.PASSWORD_BOT
-      ) {
-
-        return interaction.editReply({
-          content:
-            '❌ Password salah.'
-        });
-      }
-
-      const type =
-        interaction.options.getString(
-          'type'
-        );
-
-      const kelompok =
-        interaction.options.getString(
-          'kelompok'
-        );
-
-      const jumlah =
-        interaction.options.getInteger(
-          'jumlah'
-        );
-
-      const keterangan =
-        interaction.options.getString(
-          'keterangan'
-        );
-
-      const sheet =
-        type === 'dirty'
-          ? sheets.dirty
-          : sheets.legal;
-
-      const nomor =
-        await getNextNumber(sheet);
-
-      const totalSebelumnya =
-        await getLastTotal(sheet);
-
-      const totalBaru =
-        totalSebelumnya + jumlah;
-
-      const tanggal =
-        new Date()
-          .toLocaleDateString(
-            'id-ID'
-          );
-
-      await sheet.addRow({
-        Nomor: nomor,
-        Kelompok: kelompok,
-        Jumlah: jumlah,
-        Keterangan: keterangan,
-        Total: totalBaru,
-        Tanggal: tanggal,
-        Type: 'pemasukan'
-      });
-
-      let text = `\`\`\`
-NO         : ${nomor}
-TYPE       : ${type}
-KELOMPOK   : ${kelompok}
-JUMLAH     : Rp ${rupiah(jumlah)}
-TOTAL BARU : Rp ${rupiah(totalBaru)}
-KETERANGAN : ${keterangan}
-\`\`\`
-`;
-
-      const embed =
-        new EmbedBuilder()
-          .setColor('Green')
-          .setTitle(
-            '💰 PEMASUKAN BERHASIL'
-          )
-          .setDescription(text);
-
-      await interaction.editReply({
-        embeds: [embed]
-      });
-    }
-
-    // =================================================
-    // PENGELUARAN
-    // =================================================
-
-    if (
-      interaction.commandName ===
-      'pengeluaran'
-    ) {
-
-      const password =
-        interaction.options.getString(
-          'password'
-        );
-
-      if (
-        password !==
-        process.env.PASSWORD_BOT
-      ) {
-
-        return interaction.editReply({
-          content:
-            '❌ Password salah.'
-        });
-      }
-
-      const type =
-        interaction.options.getString(
-          'type'
-        );
-
-      const kelompok =
-        interaction.options.getString(
-          'kelompok'
-        );
-
-      const jumlah =
-        interaction.options.getInteger(
-          'jumlah'
-        );
-
-      const keterangan =
-        interaction.options.getString(
-          'keterangan'
-        );
-
-      const sheet =
-        type === 'dirty'
-          ? sheets.dirty
-          : sheets.legal;
-
-      const nomor =
-        await getNextNumber(sheet);
-
-      const totalSebelumnya =
-        await getLastTotal(sheet);
-
-      if (
-        jumlah >
-        totalSebelumnya
-      ) {
-
-        return interaction.editReply({
-          content:
-            '❌ Saldo tidak cukup.'
-        });
-      }
-
-      const totalBaru =
-        totalSebelumnya - jumlah;
-
-      const tanggal =
-        new Date()
-          .toLocaleDateString(
-            'id-ID'
-          );
-
-      await sheet.addRow({
-        Nomor: nomor,
-        Kelompok: kelompok,
-        Jumlah: jumlah,
-        Keterangan: keterangan,
-        Total: totalBaru,
-        Tanggal: tanggal,
-        Type: 'pengeluaran'
-      });
-
-      let text = `\`\`\`
-NO         : ${nomor}
-TYPE       : ${type}
-KELOMPOK   : ${kelompok}
-JUMLAH     : Rp ${rupiah(jumlah)}
-TOTAL BARU : Rp ${rupiah(totalBaru)}
-KETERANGAN : ${keterangan}
-\`\`\`
-`;
-
-      const embed =
-        new EmbedBuilder()
-          .setColor('Red')
-          .setTitle(
-            '💸 PENGELUARAN BERHASIL'
-          )
-          .setDescription(text);
-
-      await interaction.editReply({
-        embeds: [embed]
-      });
-    }
-
-    // =================================================
-    // CEK PEMASUKAN
-    // =================================================
-
-    if (
-      interaction.commandName ===
-      'cekpemasukan'
-    ) {
-
-      const type =
-        interaction.options.getString(
-          'type'
-        );
-
-      const sheet =
-        type === 'dirty'
-          ? sheets.dirty
-          : sheets.legal;
-
-      const rows =
-        await sheet.getRows();
-
-      const hasil = rows.filter(r =>
-        r.get('Type') ===
-        'pemasukan'
-      );
-
-      let text = `\`\`\`
-NO  | KELOMPOK     | JUMLAH       | KETERANGAN
-------------------------------------------------------------
-`;
-
-      hasil.reverse()
-        .slice(0, 20)
-        .forEach(r => {
-
-          const no =
-            String(r.get('Nomor'))
-              .padEnd(3, ' ');
-
-          const kelompok =
-            String(r.get('Kelompok'))
-              .padEnd(12, ' ');
+          const barang =
+            interaction.options.getString(
+              'barang'
+            );
 
           const jumlah =
-            (`Rp ${rupiah(r.get('Jumlah'))}`)
-              .padEnd(12, ' ');
+            interaction.options.getInteger(
+              'jumlah'
+            );
 
           const keterangan =
-            String(r.get('Keterangan'));
+            interaction.options.getString(
+              'keterangan'
+            );
 
-          text +=
-`${no} | ${kelompok} | ${jumlah} | ${keterangan}
-`;
+          const tanggal =
+            new Date()
+              .toLocaleDateString(
+                'id-ID'
+              );
 
-        });
+          await sheets.brangkas.addRow({
 
-      text += '```';
+            Nomor: nomor,
+            Barang: barang,
+            Jumlah: jumlah,
+            Keterangan: keterangan,
+            Tanggal: tanggal,
+            Type: 'deposit'
+          });
 
-      const embed =
-        new EmbedBuilder()
-          .setColor('Green')
-          .setTitle(
-            `💰 PEMASUKAN ${type.toUpperCase()}`
-          )
-          .setDescription(text);
+          await updateGudang(
+            sheets.gudang,
+            barang,
+            jumlah,
+            'add'
+          );
 
-      await interaction.editReply({
-        embeds: [embed]
-      });
-    }
-
-  // =================================================
-  // DEPOSIT
-  // =================================================
-  if (interaction.commandName === 'deposit') {
-
-    const password =
-      interaction.options.getString('password');
-
-    if (password !== process.env.PASSWORD_BOT) {
-
-      return interaction.editReply({
-        content: '❌ Password salah.'
-      });
-    }
-
-    const nomor =
-      await getNextNumber(sheets.brangkas);
-
-    const barang =
-      interaction.options.getString('barang');
-
-    const jumlah =
-      interaction.options.getInteger('jumlah');
-
-    const keterangan =
-      interaction.options.getString('keterangan');
-
-    const tanggal =
-      new Date().toLocaleDateString('id-ID');
-
-    await sheets.brangkas.addRow({
-      Nomor: nomor,
-      Barang: barang,
-      Jumlah: jumlah,
-      Keterangan: keterangan,
-      Tanggal: tanggal,
-      Type: 'deposit'
-    });
-
-    await updateGudang(
-      sheets.gudang,
-      barang,
-      jumlah,
-      'add'
-    );
-
-    await interaction.editReply({
-      content: `# 📥 DEPOSIT BERHASIL
+          return interaction.editReply({
+            content:
+`# 📥 DEPOSIT BERHASIL
 
 \`\`\`
 NO         : ${nomor}
 BARANG     : ${barang}
 JUMLAH     : ${jumlah}
-AKSI       : DEPOSIT
 KETERANGAN : ${keterangan}
 TANGGAL    : ${tanggal}
 \`\`\`
 `
-    });
-  }
+          });
+        }
 
-  // =================================================
-  // WITHDRAW
-  // =================================================
-  if (interaction.commandName === 'withdraw') {
+        // =================================================
+        // WITHDRAW
+        // =================================================
 
-    const password =
-      interaction.options.getString('password');
+        if (
+          interaction.commandName ===
+          'withdraw'
+        ) {
 
-    if (password !== process.env.PASSWORD_BOT) {
+          const password =
+            interaction.options.getString(
+              'password'
+            );
 
-      return interaction.editReply({
-        content: '❌ Password salah.'
-      });
-    }
+          if (
+            password !==
+            process.env.PASSWORD_BOT
+          ) {
 
-    const nomor =
-      await getNextNumber(sheets.brangkas);
+            return interaction.editReply({
+              content:
+                '❌ Password salah.'
+            });
+          }
 
-    const barang =
-      interaction.options.getString('barang');
+          const nomor =
+            await getNextNumber(
+              sheets.brangkas
+            );
 
-    const jumlah =
-      interaction.options.getInteger('jumlah');
+          const barang =
+            interaction.options.getString(
+              'barang'
+            );
 
-    const keterangan =
-      interaction.options.getString('keterangan');
+          const jumlah =
+            interaction.options.getInteger(
+              'jumlah'
+            );
 
-    const tanggal =
-      new Date().toLocaleDateString('id-ID');
+          const keterangan =
+            interaction.options.getString(
+              'keterangan'
+            );
 
-    await sheets.brangkas.addRow({
-      Nomor: nomor,
-      Barang: barang,
-      Jumlah: jumlah,
-      Keterangan: keterangan,
-      Tanggal: tanggal,
-      Type: 'withdraw'
-    });
+          const tanggal =
+            new Date()
+              .toLocaleDateString(
+                'id-ID'
+              );
 
-    await updateGudang(
-      sheets.gudang,
-      barang,
-      jumlah,
-      'remove'
-    );
+          try {
 
-    await interaction.editReply({
-      content: `# 📤 WITHDRAW BERHASIL
+            await updateGudang(
+              sheets.gudang,
+              barang,
+              jumlah,
+              'remove'
+            );
+
+          } catch (err) {
+
+            if (
+              err.message ===
+              'BARANG_TIDAK_ADA'
+            ) {
+
+              return interaction.editReply({
+                content:
+                  '❌ Barang tidak ada di gudang.'
+              });
+            }
+
+            if (
+              err.message ===
+              'STOK_TIDAK_CUKUP'
+            ) {
+
+              return interaction.editReply({
+                content:
+                  '❌ Stock gudang tidak cukup.'
+              });
+            }
+
+            throw err;
+          }
+
+          await sheets.brangkas.addRow({
+
+            Nomor: nomor,
+            Barang: barang,
+            Jumlah: jumlah,
+            Keterangan: keterangan,
+            Tanggal: tanggal,
+            Type: 'withdraw'
+          });
+
+          return interaction.editReply({
+            content:
+`# 📤 WITHDRAW BERHASIL
 
 \`\`\`
 NO         : ${nomor}
 BARANG     : ${barang}
 JUMLAH     : ${jumlah}
-AKSI       : WITHDRAW
 KETERANGAN : ${keterangan}
 TANGGAL    : ${tanggal}
 \`\`\`
 `
-    });
-  }
-    // =================================================
-    // CEK PENGELUARAN
-    // =================================================
+          });
+        }
 
-    if (
-      interaction.commandName ===
-      'cekpengeluaran'
-    ) {
+      }
 
-      const type =
-        interaction.options.getString(
-          'type'
-        );
+      // =============================================
+      // SELECT MENU
+      // =============================================
 
-      const sheet =
-        type === 'dirty'
-          ? sheets.dirty
-          : sheets.legal;
+      if (
+        interaction.isStringSelectMenu()
+      ) {
 
-      const rows =
-        await sheet.getRows();
+      }
 
-      const hasil = rows.filter(r =>
-        r.get('Type') ===
-        'pengeluaran'
-      );
+      // =============================================
+      // MODAL
+      // =============================================
 
-      let text = `\`\`\`
-NO  | KELOMPOK     | JUMLAH       | KETERANGAN
-------------------------------------------------------------
-`;
+      if (
+        interaction.isModalSubmit()
+      ) {
 
-      hasil.reverse()
-        .slice(0, 20)
-        .forEach(r => {
+      }
 
-          const no =
-            String(r.get('Nomor'))
-              .padEnd(3, ' ');
+    } catch (err) {
 
-          const kelompok =
-            String(r.get('Kelompok'))
-              .padEnd(12, ' ');
+      console.error(err);
 
-          const jumlah =
-            (`Rp ${rupiah(r.get('Jumlah'))}`)
-              .padEnd(12, ' ');
+      if (
+        interaction.deferred ||
+        interaction.replied
+      ) {
 
-          const keterangan =
-            String(r.get('Keterangan'));
+        interaction.editReply({
+          content:
+            '❌ Terjadi error.'
+        }).catch(() => {});
 
-          text +=
-`${no} | ${kelompok} | ${jumlah} | ${keterangan}
-`;
+      } else {
 
-        });
-
-      text += '```';
-
-      const embed =
-        new EmbedBuilder()
-          .setColor('Red')
-          .setTitle(
-            `💸 PENGELUARAN ${type.toUpperCase()}`
-          )
-          .setDescription(text);
-
-      await interaction.editReply({
-        embeds: [embed]
-      });
+        interaction.reply({
+          content:
+            '❌ Terjadi error.',
+          ephemeral: true
+        }).catch(() => {});
+      }
     }
-
   }
 );
+
+// =================================================
+// ERROR HANDLER
+// =================================================
+
+process.on(
+  'unhandledRejection',
+  console.error
+);
+
+process.on(
+  'uncaughtException',
+  console.error
+);
+
+// =================================================
+// LOGIN
+// =================================================
 
 client.login(
   process.env.TOKEN
 );
+````
